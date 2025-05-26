@@ -17,7 +17,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _screens = [
     const InventoryListScreen(),
     const AddInventoryScreen(),
-    const CalculatorScreen(),
+    const SalesScreen(),
     const SettingsScreen(),
   ];
 
@@ -55,36 +55,47 @@ class _HomeScreenState extends State<HomeScreen> {
         automaticallyImplyLeading: false,
       ),
       body: _screens[_currentIndex],
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openMoreMenu,
-        backgroundColor: const Color(0xFF3A86FF),
-        child: const Icon(Icons.more_horiz),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // floatingActionButton: FloatingActionButton(
+      //   onPressed: _openMoreMenu,
+      //   backgroundColor: const Color(0xFF3A86FF),
+      //   child: const Icon(Icons.more_horiz),
+      // ),
+      // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
-        color: const Color(0xFFB2F5F0),
         shape: const CircularNotchedRectangle(),
         notchMargin: 8.0,
-        child: BottomNavigationBar(
-          backgroundColor: const Color(0xFFB2F5F0),
-          type: BottomNavigationBarType.fixed,
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          selectedItemColor: const Color(0xFF3A86FF),
-          unselectedItemColor: Colors.grey,
-          showUnselectedLabels: true,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.inventory_2),
-              label: 'Inventory',
-            ),
-            BottomNavigationBarItem(icon: Icon(Icons.add_box), label: 'Add'),
-            BottomNavigationBarItem(icon: Icon(Icons.calculate), label: 'Calc'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings),
-              label: 'Settings',
-            ),
-          ],
+        color: const Color(0xFF00CFE8), // main cyan color
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: BottomNavigationBar(
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            selectedItemColor: Colors.white,
+            unselectedItemColor: Colors.white70,
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            showUnselectedLabels: true,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.inventory_2),
+                label: 'Inventory',
+              ),
+              BottomNavigationBarItem(icon: Icon(Icons.add_box), label: 'Add'),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.calculate),
+                label: 'Calc',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.settings),
+                label: 'Settings',
+              ),
+            ],
+          ),
         ),
       ),
     );

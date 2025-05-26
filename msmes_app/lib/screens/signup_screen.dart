@@ -56,6 +56,7 @@ class SignupScreenState extends State<SignupScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Signup failed. Check info or try again.')),
         );
+        print('Signup failed request data: $requestData');
       }
     } else if (!_agreeTerms) {
       ScaffoldMessenger.of(
