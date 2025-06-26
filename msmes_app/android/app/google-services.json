@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "944346595445",
+    "project_id": "inventoryapp-cf800",
+    "storage_bucket": "inventoryapp-cf800.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:944346595445:android:1065a42161b240f774383c",
+        "android_client_info": {
+          "package_name": "com.example.msmes_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6mzNgKCqQ_akCKSbA61-KjkRC2jAX9r4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

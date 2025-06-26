@@ -2,28 +2,21 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'sales_summary_screen.dart';
-import 'credit_details_screen.dart';
+import 'package:msmes_app/screens/sales_detail_screen.dart';
 
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
 
   @override
-  _SalesScreenState createState() => _SalesScreenState();
+  State<SalesScreen> createState() => _SalesScreenState();
 }
 
 class _SalesScreenState extends State<SalesScreen> {
-  List<dynamic> products = [];
-  dynamic selectedProduct;
-  int quantity = 1;
+  Map<String, List<Map<String, dynamic>>> categorizedProducts = {};
+  List<Map<String, dynamic>> cart = [];
+  Map<int, int> quantityMap = {}; // Maps product ID to quantity
   String paymentType = 'cash';
-  String customerName = '';
-  String customerPhone = '';
-
   bool isLoading = false;
-
-  final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
@@ -36,333 +29,354 @@ class _SalesScreenState extends State<SalesScreen> {
     final token = prefs.getString('auth_token');
 
     final response = await http.get(
-      Uri.parse('http://10.0.2.2:8000/api/inventory/'), // Android Emulator
+      Uri.parse('http://192.168.1.113:8000/api/inventory/'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
-    // final response = await http.get(
-    //   Uri.parse('http://192.168.1.113:8000/api/inventory/'), // physical device
-    //   headers: {'Authorization': 'Bearer $token'},
-    // );
-
     if (response.statusCode == 200) {
+      final List products = jsonDecode(response.body);
       setState(() {
-        products = jsonDecode(response.body);
+        categorizedProducts = {};
+        for (var product in products) {
+          final category = product['category'] ?? 'Uncategorized';
+          if (!categorizedProducts.containsKey(category)) {
+            categorizedProducts[category] = [];
+          }
+          categorizedProducts[category]!.add(product);
+        }
       });
     } else {
       print("Error loading products: ${response.body}");
     }
   }
 
-  Future<void> submitSale() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
-    if (!_formKey.currentState!.validate() || selectedProduct == null) return;
+  void addToCart(Map<String, dynamic> product) {
+    setState(() {
+      cart.add(product);
+      quantityMap[product['id']] = (quantityMap[product['id']] ?? 0) + 1;
+    });
+  }
 
-    setState(() => isLoading = true);
-
-    final saleData = {
-      'product_name': selectedProduct!['id'],
-      'quantity_sold': quantity,
-      'sale_price': selectedProduct!['price_per_unit'],
-      'payment_type': paymentType,
-      // Do NOT include customer fields here
-    };
-
-    print("Sending sale data: ${jsonEncode(saleData)}");
-
-    final response = await http.post(
-      Uri.parse('http://10.0.2.2:8000/api/sales/'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode(saleData),
-    );
-
-    setState(() => isLoading = false);
-
-    if (response.statusCode == 201) {
-      final saleResponse = jsonDecode(response.body);
-
-      if (paymentType == 'credit') {
-        // Navigate to CreditDetailsScreen
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CreditDetailsScreen(saleData: saleResponse),
-          ),
-        );
-      } else {
-        // Navigate to SaleSummaryScreen (for cash)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Sale recorded successfully.")));
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SaleSummaryScreen(saleData: saleResponse),
-          ),
-        );
-      }
-
-      // Reset form
+  void increaseQuantity() {
+    if (cart.isNotEmpty) {
+      final lastProduct = cart.last;
+      final id = lastProduct['id'];
       setState(() {
-        selectedProduct = null;
-        quantity = 1;
-        paymentType = 'cash';
-        customerName = '';
-        customerPhone = '';
+        quantityMap[id] = (quantityMap[id] ?? 1) + 1;
       });
-
-      fetchProducts(); // refresh inventory
-    } else {
-      print("Sale failed: ${response.body}");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Sale failed. ${response.statusCode}.")),
-      );
-      throw Exception("Sale failed. Server says: ${response.body}");
     }
   }
 
-  // Future<void> submitSale() async {
-  //   final prefs = await SharedPreferences.getInstance();
-  //   final token = prefs.getString('auth_token');
-  //   if (!_formKey.currentState!.validate() || selectedProduct == null) return;
+  void decreaseQuantity() {
+    if (cart.isNotEmpty) {
+      final lastProduct = cart.last;
+      final id = lastProduct['id'];
+      setState(() {
+        final currentQty = quantityMap[id] ?? 1;
+        if (currentQty > 1) {
+          quantityMap[id] = currentQty - 1;
+        } else {
+          cart.removeLast();
+          quantityMap.remove(id);
+        }
+      });
+    }
+  }
 
-  //   if (paymentType == 'credit') {
-  //     // Require name and phone for credit sales
-  //     if (customerName.trim().isEmpty || customerPhone.trim().isEmpty) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content: Text(
-  //             'Customer name and phone are required for credit sales.',
-  //           ),
-  //         ),
-  //       );
-  //       return;
-  //     }
-  //   }
+  double calculateTotal() {
+    double total = 0;
+    for (var product in cart) {
+      final qty = quantityMap[product['id']] ?? 1;
+      final price = double.tryParse(product['price_per_unit'].toString()) ?? 0;
+      total += qty * price;
+    }
+    return total;
+  }
 
-  //   setState(() => isLoading = true);
+  Future<void> submitSale() async {
+    if (cart.isEmpty) return;
 
-  //   final saleData = {
-  //     'product_name': selectedProduct!['id'],
-  //     'quantity_sold': quantity,
-  //     'sale_price': selectedProduct!['price_per_unit'],
-  //     'payment_type': paymentType,
-  //     'customer_name': customerName,
-  //     'customer_phone': customerPhone,
-  //   };
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    setState(() => isLoading = true);
 
-  //   print("Sending sale data: ${jsonEncode(saleData)}");
+    Map<String, dynamic>? lastSaleResponse;
 
-  //   final response = await http.post(
-  //     Uri.parse('http://10.0.2.2:8000/api/sales/'),
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       'Authorization': 'Bearer $token',
-  //     },
-  //     body: jsonEncode(saleData),
-  //   );
+    for (var product in cart.toSet()) {
+      final id = product['id'];
+      final saleData = {
+        'product_name': id,
+        'quantity_sold': quantityMap[id] ?? 1,
+        'sale_price': product['price_per_unit'],
+        'payment_type': paymentType,
+      };
 
-  //   setState(() => isLoading = false);
+      final response = await http.post(
+        Uri.parse('http://192.168.1.113:8000/api/sales/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(saleData),
+      );
 
-  //   if (response.statusCode == 201) {
-  //     ScaffoldMessenger.of(
-  //       context,
-  //     ).showSnackBar(SnackBar(content: Text("Sale recorded successfully.")));
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        lastSaleResponse = jsonDecode(response.body);
+        lastSaleResponse?['product_details'] = product;
+      } else {
+        print("Error: ${response.body}");
+      }
+    }
 
-  //     setState(() {
-  //       selectedProduct = null;
-  //       quantity = 1;
-  //       paymentType = 'cash';
-  //       customerName = '';
-  //       customerPhone = '';
-  //     });
+    setState(() {
+      cart.clear();
+      quantityMap.clear();
+      isLoading = false;
+    });
 
-  //     fetchProducts(); // refresh inventory
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Sale submitted successfully.")),
+    );
 
-  //     final saleResponse = jsonDecode(response.body);
+    if (lastSaleResponse != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SaleSummaryScreen(saleData: lastSaleResponse!),
+        ),
+      );
+    }
 
-  //     // Go to SaleSummaryScreen or CreditDetailsScreen
-  //     if (paymentType == 'credit') {
-  //       Navigator.push(
-  //         context,
-  //         MaterialPageRoute(
-  //           builder: (context) => CreditDetailsScreen(saleData: saleResponse),
-  //         ),
-  //       );
-  //     } else {
-  //       Navigator.push(
-  //         context,
-  //         MaterialPageRoute(
-  //           builder: (context) => SaleSummaryScreen(saleData: saleResponse),
-  //         ),
-  //       );
-  //     }
-  //   } else {
-  //     print("Sale failed: ${response.body}");
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text("Sale failed. ${response.statusCode}.")),
-  //     );
-  //     throw Exception("Sale failed. Server says: ${response.body}");
-  //   }
-  // }
-
-  // Future<void> submitSale() async {
-  //   final prefs = await SharedPreferences.getInstance();
-  //   final token = prefs.getString('auth_token');
-  //   if (!_formKey.currentState!.validate() || selectedProduct == null) return;
-
-  //   setState(() => isLoading = true);
-
-  //   // print("Sending sale data: ${jsonEncode(selectedProduct)}");
-  //   print(
-  //     "Sending sale data: ${jsonEncode({'product_name': selectedProduct['id'], 'quantity_sold': quantity, 'payment_type': paymentType, 'customer_name': customerName, 'customer_phone': customerPhone})}",
-  //   );
-
-  //   final response = await http.post(
-  //     Uri.parse('http://10.0.2.2:8000/api/sales/'),
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       'Authorization': 'Bearer $token',
-  //     },
-
-  //     // final response = await http.post(
-  //     //   Uri.parse('http://192.168.1.113:8000/api/sales/'),
-  //     //   headers: {
-  //     //     'Content-Type': 'application/json',
-  //     //     'Authorization': 'Bearer $token',
-  //     //   },
-  //     body: jsonEncode({
-  //       'product_name': selectedProduct['id'],
-  //       'quantity_sold': quantity,
-  //       'sale_price': selectedProduct['price_per_unit'],
-  //       'payment_type': paymentType,
-  //       'customer_name': customerName,
-  //       'customer_phone': customerPhone,
-  //     }),
-  //   );
-
-  //   setState(() => isLoading = false);
-
-  //   if (response.statusCode == 201) {
-  //     ScaffoldMessenger.of(
-  //       context,
-  //     ).showSnackBar(SnackBar(content: Text("Sale recorded successfully.")));
-
-  //     setState(() {
-  //       selectedProduct = null;
-  //       quantity = 1;
-  //       paymentType = 'cash';
-  //       customerName = '';
-  //       customerPhone = '';
-  //     });
-
-  //     fetchProducts(); // refresh inventory
-
-  //     final saleResponse = jsonDecode(response.body);
-  //     Navigator.push(
-  //       context,
-  //       MaterialPageRoute(
-  //         builder: (context) => SaleSummaryScreen(saleData: saleResponse),
-  //       ),
-  //     );
-  //   } else {
-  //     print("Sale failed: ${response.body}");
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text("Sale failed. ${response.statusCode}.")),
-  //     );
-  //     throw Exception("Sale failed. Server says: ${response.body}");
-  //   }
-  // }
+    fetchProducts();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Record Sale')),
-      body: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child:
-            isLoading
-                ? Center(child: CircularProgressIndicator())
-                : Form(
-                  key: _formKey,
-                  child: Column(
-                    children: [
-                      DropdownButtonFormField<Map<String, dynamic>>(
-                        value:
-                            selectedProduct != null &&
-                                    products.any(
-                                      (product) =>
-                                          product['id'] ==
-                                          selectedProduct['id'],
-                                    )
-                                ? selectedProduct
-                                : null,
-                        items:
-                            products.map<
-                              DropdownMenuItem<Map<String, dynamic>>
-                            >((item) {
-                              return DropdownMenuItem<Map<String, dynamic>>(
-                                value: item,
-                                child: Text(
-                                  "${item['product_name']} - ${item['quantity_in_stock']} pcs",
-                                ),
-                              );
-                            }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            selectedProduct = value;
-                          });
-                        },
-                        decoration: InputDecoration(
-                          labelText: "Select Product",
-                        ),
-                        validator:
-                            (value) =>
-                                value == null
-                                    ? 'Please select a product'
-                                    : null,
-                      ),
+    final categoryList = categorizedProducts.keys.toList();
+    final functionButtons = ['+', '-', 'CLEAR', 'SALE'];
 
-                      TextFormField(
-                        decoration: InputDecoration(labelText: "Quantity"),
-                        initialValue: "1",
-                        keyboardType: TextInputType.number,
-                        onChanged: (val) => quantity = int.tryParse(val) ?? 1,
-                        validator:
-                            (val) =>
-                                val == null || int.tryParse(val)! <= 0
-                                    ? "Enter valid quantity"
-                                    : null,
-                      ),
-                      DropdownButtonFormField(
-                        value: paymentType,
-                        items: [
-                          DropdownMenuItem(value: 'cash', child: Text("Cash")),
-                          DropdownMenuItem(
-                            value: 'credit',
-                            child: Text("Credit"),
-                          ),
-                          DropdownMenuItem(
-                            value: 'mobile',
-                            child: Text("Mobile Payment"),
-                          ),
-                        ],
-                        onChanged: (val) => setState(() => paymentType = val!),
-                        decoration: InputDecoration(labelText: "Payment Type"),
-                      ),
-                      SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: submitSale,
-                        child: Text("Submit Sale"),
-                      ),
-                    ],
+    final totalRows = 4;
+    final paddedLabels = List.generate(totalRows * 3, (i) {
+      return i < categoryList.length ? categoryList[i] : '';
+    });
+
+    final gridButtons = <Map<String, dynamic>>[];
+    for (int i = 0; i < totalRows; i++) {
+      gridButtons.addAll([
+        {'label': paddedLabels[i * 3], 'type': 'category'},
+        {'label': paddedLabels[i * 3 + 1], 'type': 'category'},
+        {'label': paddedLabels[i * 3 + 2], 'type': 'category'},
+        {'label': functionButtons[i], 'type': 'function'},
+      ]);
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Sales'),
+        backgroundColor: Colors.amber[700],
+      ),
+      body: Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.shade300,
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  cart.isEmpty
+                      ? '🧾 No items selected.'
+                      : cart
+                          .map(
+                            (e) =>
+                                '${e['product_name']} x${quantityMap[e['id']] ?? 1}',
+                          )
+                          .join(', '),
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Total: ${calculateTotal().toStringAsFixed(2)} Birr',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+                const SizedBox(height: 10),
+                DropdownButton<String>(
+                  value: paymentType,
+                  onChanged: (val) {
+                    if (val != null) setState(() => paymentType = val);
+                  },
+                  items: const [
+                    DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                    DropdownMenuItem(value: 'credit', child: Text('Credit')),
+                    DropdownMenuItem(
+                      value: 'mobile',
+                      child: Text('Mobile Payment'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: GridView.builder(
+                itemCount: gridButtons.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                ),
+                itemBuilder: (context, index) {
+                  final btn = gridButtons[index];
+                  final label = btn['label'];
+                  final type = btn['type'];
+
+                  if (label == '') return const SizedBox.shrink();
+
+                  Color? bgColor;
+                  if (type == 'function') {
+                    if (label == 'CLEAR') {
+                      bgColor = Colors.red[300];
+                    } else if (label == 'SALE') {
+                      bgColor = Colors.yellow[600];
+                    } else {
+                      bgColor = Colors.grey[300];
+                    }
+                  } else {
+                    bgColor = Colors.orange[200];
+                  }
+
+                  return ElevatedButton(
+                    onPressed: () {
+                      if (type == 'category') {
+                        showModalBottomSheet(
+                          context: context,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(20),
+                            ),
+                          ),
+                          builder:
+                              (_) => ItemPopup(
+                                category: label,
+                                items: categorizedProducts[label]!,
+                                onItemSelected: addToCart,
+                              ),
+                        );
+                      } else {
+                        if (label == '+') {
+                          increaseQuantity();
+                        } else if (label == '-') {
+                          decreaseQuantity();
+                        } else if (label == 'CLEAR') {
+                          setState(() {
+                            cart.clear();
+                            quantityMap.clear();
+                          });
+                        } else if (label == 'SALE') {
+                          submitSale();
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: bgColor,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ItemPopup extends StatelessWidget {
+  final String category;
+  final List<Map<String, dynamic>> items;
+  final Function(Map<String, dynamic>) onItemSelected;
+
+  const ItemPopup({
+    super.key,
+    required this.category,
+    required this.items,
+    required this.onItemSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      height: 300,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "$category Items",
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: GridView.count(
+              crossAxisCount: 3,
+              crossAxisSpacing: 15,
+              mainAxisSpacing: 15,
+              children:
+                  items.map((item) {
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        onItemSelected(item);
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: Colors.amber[100],
+                            radius: 30,
+                            child: const Icon(
+                              Icons.shopping_bag,
+                              size: 30,
+                              color: Colors.brown,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            item['product_name'],
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+            ),
+          ),
+        ],
       ),
     );
   }

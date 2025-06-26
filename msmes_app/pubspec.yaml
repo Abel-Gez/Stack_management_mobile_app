@@ -25,7 +25,12 @@ dependencies:
   shared_preferences: ^2.2.2
   flutter_native_splash: ^2.4.6
   image_picker: ^1.0.2
-
+  fl_chart: ^0.65.0
+  intl: ^0.18.0
+  app_links: ^3.4.1
+  # uni_links: ^0.5.1
+  url_launcher: ^6.2.5 # or the latest version
+  
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -56,6 +61,7 @@ flutter:
     - assets/images/shop.png
     - assets/images/msmes_logo.png
     - assets/images/splash_logo.png
+    - assets/images/bg.png
   
   fonts:
     - family: Fredoka

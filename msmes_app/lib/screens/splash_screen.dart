@@ -1,5 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:app_links/app_links.dart';
+import 'dart:developer';
+import 'package:msmes_app/screens/password_reset_complete_screen.dart';
+import 'package:flutter/services.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,10 +16,15 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
+  StreamSubscription<Uri>? _sub;
+  final AppLinks _appLinks = AppLinks(); // app_links instance
 
   @override
   void initState() {
     super.initState();
+
+    // Handle deep links
+    handleIncomingLinks();
 
     // Animation for logo scale
     _controller = AnimationController(
@@ -25,15 +34,47 @@ class _SplashScreenState extends State<SplashScreen>
 
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
 
-    // Delay and navigate to login
+    // Delay and navigate to welcome if no deep link
     Timer(const Duration(seconds: 4), () {
-      Navigator.pushReplacementNamed(context, '/login');
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/welcome');
+      }
     });
+  }
+
+  void handleIncomingLinks() async {
+    try {
+      _sub = _appLinks.uriLinkStream.listen(
+        (Uri? uri) {
+          if (uri != null && uri.path.contains("reset-password")) {
+            final uid = uri.queryParameters['uid'] ?? '';
+            final token = uri.queryParameters['token'] ?? '';
+
+            log("Deep link: uid=$uid, token=$token");
+
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (context) =>
+                        PasswordResetCompleteScreen(uidb64: uid, token: token),
+              ),
+            );
+          }
+        },
+        onError: (err) {
+          log("Error parsing deep link: $err");
+        },
+      );
+    } on PlatformException catch (e) {
+      log("PlatformException: $e");
+    }
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _sub?.cancel();
     super.dispose();
   }
 
@@ -84,7 +125,6 @@ class DotLoading extends StatefulWidget {
   const DotLoading({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
   _DotLoadingState createState() => _DotLoadingState();
 }
 

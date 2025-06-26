@@ -42,11 +42,11 @@ class _AddInventoryScreenState extends State<AddInventoryScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final url = Uri.parse(
-        'http://10.0.2.2:8000/api/inventory/',
-      ); // For Android Emulator
+      // final url = Uri.parse(
+      //   'http://10.0.2.2:8000/api/inventory/',
+      // ); // For Android Emulator
 
-      // final url = Uri.parse('http://192.168.1.113:8000/api/inventory/');
+      final url = Uri.parse('http://192.168.1.113:8000/api/inventory/');
 
       // final url = Uri.parse(
       //   'https://3700-196-189-56-201.ngrok-free.app/api/inventory/',

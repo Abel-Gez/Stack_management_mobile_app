@@ -27,11 +27,11 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
 
-    final url = Uri.parse('http://10.0.2.2:8000//api/inventory/');
+    // final url = Uri.parse('http://10.0.2.2:8000//api/inventory/');
 
-    // final url = Uri.parse(
-    //   'http://192.168.1.113:8000/api/inventory/',
-    // ); //Physical device
+    final url = Uri.parse(
+      'http://192.168.1.113:8000/api/inventory/',
+    ); //Physical device
 
     // final url = Uri.parse(
     //   'https://3700-196-189-56-201.ngrok-free.app/api/inventory/',
@@ -73,9 +73,11 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
 
-    final url = Uri.parse('http://10.0.2.2:8000//api/inventory/$id/');
+    // final url = Uri.parse('http://10.0.2.2:8000//api/inventory/$id/');
 
-    // final url = Uri.parse('http://192.168.1.113:8000/api/inventory/$id/');
+    final url = Uri.parse(
+      'http://192.168.1.113:8000/api/inventory/$id/',
+    ); //physical device
 
     // final url = Uri.parse(
     //   'https://3700-196-189-56-201.ngrok-free.app/api/inventory/',
